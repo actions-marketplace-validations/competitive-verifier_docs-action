@@ -50,11 +50,6 @@ inputs:
     description: "If true, cache pip"
     required: false
     default: "false"
-outputs:
-  is-success:
-    description: "Result boolean of `competitive-verifier verify`."
-    value: ${{ steps.verify.outputs.success }}
-
 runs:
   using: composite
   steps:
