@@ -1,0 +1,123 @@
+name: "competitive-verifier docs"
+description: "A composite action that competitive-verifier docs"
+author: "Kzrnm"
+branding:
+  color: blue
+  icon: file-text
+inputs:
+  write-summary:
+    description: If true, show GitHub Actions Summary
+    required: false
+    default: "true"
+  destination:
+    description: "Argument of docs --destination."
+    required: true
+  local-result-path:
+    description: "The file path of ressult json."
+    required: false
+    default: ""
+
+  result-artifact-prefix:
+    description: The name of artifact which contains verify result json.
+    required: false
+    default: ${{ runner.os }}-competitive-verifier-result
+  result-file-name:
+    description: "Result json file name."
+    required: false
+    default: "competitive-verifier-result.json"
+  retention-days:
+    description: "Duration after which artifact will expire in days."
+    required: false
+    default: "1"
+
+  local-verify-files-path:
+    description: "The file path of verify files json."
+    required: false
+    default: ""
+  verify-files-name:
+    description: "The file name of verify files json in artifact."
+    required: false
+    default: "verify-files.json"
+  verify-files-artifact-name:
+    description: The name of artifact which contains verify files json.
+    required: false
+    default: ${{ runner.os }}-verify-files-json
+  install:
+    description: "If true, run `pip install competitive-verifier`"
+    required: false
+    default: "false"
+  cache-pip:
+    description: "If true, cache pip"
+    required: false
+    default: "false"
+outputs:
+  is-success:
+    description: "Result boolean of `competitive-verifier verify`."
+    value: ${{ steps.verify.outputs.success }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      if: fromJson(inputs.install)
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+
+    - uses: actions/cache@v3
+      if: startsWith(runner.os, 'Linux') && fromJson(inputs.cache-pip)
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-competitive-verifier-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-pip-competitive-verifier-
+    - uses: actions/cache@v3
+      if: startsWith(runner.os, 'macOS') && fromJson(inputs.cache-pip)
+      with:
+        path: ~/Library/Caches/pip
+        key: ${{ runner.os }}-pip-competitive-verifier-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-pip-competitive-verifier-
+    - uses: actions/cache@v3
+      if: startsWith(runner.os, 'Windows') && fromJson(inputs.cache-pip)
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-competitive-verifier-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-pip-competitive-verifier-
+
+    - name: Install competitive-verifier
+      shell: bash
+      if: fromJson(inputs.install)
+      run: pip install git+https://github.com/competitive-verifier/competitive-verifier.git@main
+
+    - name: Download verify files json
+      if: inputs.local-verify-files-path == ''
+      uses: actions/download-artifact@v3
+      with:
+        name: ${{ inputs.verify-files-artifact-name }}
+        path: ${{ runner.temp }}/verify
+    - name: Set $COMPETITIVE_VERIFY_FILES_PATH
+      shell: bash
+      run: |
+        JSON_PATH="${{ inputs.local-verify-files-path }}"
+        echo ${JSON_PATH:=$ARTIFACT_JSON_PATH}
+        echo "COMPETITIVE_VERIFY_FILES_PATH=$JSON_PATH" >> $GITHUB_ENV
+      env:
+        ARTIFACT_JSON_PATH: ${{ runner.temp }}/verify/${{ inputs.verify-files-name }}
+
+    - uses: actions/download-artifact@v3
+      if: inputs.local-result-path == ''
+      with:
+        path: ${{ runner.temp }}/artifacts
+
+    - name: Run docs
+      shell: bash
+      id: docs
+      run: |
+        competitive-verifier docs ${RESULT_FILES:=$ARTIFACT_FILES} $SUMMARY --destination "$DESTINATION"
+      env:
+        RESULT_FILES: ${{ inputs.local-result-path }}
+        ARTIFACT_FILES: ${{ runner.temp }}/artifacts/${{ inputs.result-artifact-prefix }}*/${{ inputs.result-file-name }}
+        SUMMARY: ${{ (fromJson(inputs.write-summary) && '--write-summary') || '' }}
+        DESTINATION: ${{ inputs.destination }}
