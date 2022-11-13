@@ -40,12 +40,25 @@ jobs:
           install: true
           cache-pip: true
           write-summary: false
-
       - name: Test local
         run: |
           [ $(wc -c < "$GITHUB_STEP_SUMMARY") = 0 ]
+          rm $GITHUB_STEP_SUMMARY
           ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_local
 
+      - name: Create docs local without write-summary input
+        id: docs-local-without-write-summary
+        uses: ./
+        with:
+          local-verify-files-path: tests/verify-files.json
+          local-result-path: tests/pyres*/competitive-verifier-result.json
+          destination: ${{runner.temp}}/.competitive-verifier/_jekyll_local
+      - name: Test local without write-summary input
+        run: |
+          [ $(wc -c < "$GITHUB_STEP_SUMMARY") = 0 ]
+          rm $GITHUB_STEP_SUMMARY
+          ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_local
+          
       - name: Create docs artifact
         id: docs-artifact
         uses: ./
@@ -53,8 +66,8 @@ jobs:
           local-verify-files-path: tests/verify-files.json
           destination: ${{runner.temp}}/.competitive-verifier/_jekyll_artifact
           write-summary: true
-
       - name: Test artifact
         run: |
           [ $(wc -c < "$GITHUB_STEP_SUMMARY") > 0 ]
+          rm $GITHUB_STEP_SUMMARY
           ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_artifact
