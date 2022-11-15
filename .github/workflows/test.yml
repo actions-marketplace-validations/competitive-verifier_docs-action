@@ -8,66 +8,67 @@ on:
   workflow_dispatch:
 
 jobs:
-  upload:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        index: [0, 1, 2, 3]
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ runner.os }}-competitive-verifier-result-${{ matrix.index }}
-          path: tests/pyres${{ matrix.index }}/competitive-verifier-result.json
-          retention-days: ${{ inputs.retention-days }}
-
   test:
     runs-on: ubuntu-latest
-    needs: upload
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Create docs local
-        id: docs-local
-        uses: ./
+      - name: Set up competitive-verifier
+        uses: competitive-verifier/setup-competitive-verifier@v1
         with:
-          local-verify-files-path: tests/verify-files.json
-          local-result-path: tests/pyres*/competitive-verifier-result.json
-          destination: ${{runner.temp}}/.competitive-verifier/_jekyll_local
-          install: true
-          cache-pip: true
-          write-summary: false
-      - name: Test local
-        run: |
-          [ $(wc -c < "$GITHUB_STEP_SUMMARY") = 0 ]
-          rm $GITHUB_STEP_SUMMARY
-          ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_local
+          python-version: "3.9"
 
-      - name: Create docs local without write-summary input
-        id: docs-local-without-write-summary
+      - name: No verify-files
+        id: no-verify-files
+        uses: ./
+        continue-on-error: true
+        with:
+          verify-result: tests/pyres*/competitive-verifier-result.json
+          destination: ${{runner.temp}}/.competitive-verifier/jekyll-summary-false
+      - name: Test no-verify-files
+        run: |
+          test "${{steps.no-verify-files.outcome}}" == "failure"
+
+      - name: Create docs summary-false
+        id: docs-summary-false
         uses: ./
         with:
-          local-verify-files-path: tests/verify-files.json
-          local-result-path: tests/pyres*/competitive-verifier-result.json
-          destination: ${{runner.temp}}/.competitive-verifier/_jekyll_local
-      - name: Test local without write-summary input
+          verify-files: tests/verify-files.json
+          verify-result: tests/pyres*/competitive-verifier-result.json
+          destination: ${{runner.temp}}/.competitive-verifier/jekyll-summary-false
+          write-summary: false
+      - name: Test summary-false
         run: |
           [ $(wc -c < "$GITHUB_STEP_SUMMARY") = 0 ]
           rm $GITHUB_STEP_SUMMARY
-          ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_local
-          
-      - name: Create docs artifact
-        id: docs-artifact
+          ls ${RUNNER_TEMP}/.competitive-verifier/jekyll-summary-false
+
+      - name: Create docs no-summary
+        id: docs-no-summary
         uses: ./
         with:
-          local-verify-files-path: tests/verify-files.json
-          destination: ${{runner.temp}}/.competitive-verifier/_jekyll_artifact
+          verify-result: tests/pyres*/competitive-verifier-result.json
+          destination: ${{runner.temp}}/.competitive-verifier/jekyll-no-summary
+          write-summary: false
+        env:
+          COMPETITIVE_VERIFY_FILES_PATH: tests/verify-files.json
+      - name: Test no-summary
+        run: |
+          [ $(wc -c < "$GITHUB_STEP_SUMMARY") = 0 ]
+          rm $GITHUB_STEP_SUMMARY
+          ls ${RUNNER_TEMP}/.competitive-verifier/jekyll-no-summary
+
+      - name: Create docs summary
+        id: docs-summary
+        uses: ./
+        with:
+          verify-files: tests/verify-files.json
+          verify-result: tests/pyres*/competitive-verifier-result.json
+          destination: ${{runner.temp}}/.competitive-verifier/jekyll-summary
           write-summary: true
-      - name: Test artifact
+      - name: Test summary
         run: |
           [ $(wc -c < "$GITHUB_STEP_SUMMARY") > 0 ]
           rm $GITHUB_STEP_SUMMARY
-          ls ${RUNNER_TEMP}/.competitive-verifier/_jekyll_artifact
+          ls ${RUNNER_TEMP}/.competitive-verifier/jekyll-summary
